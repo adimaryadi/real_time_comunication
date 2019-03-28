@@ -9,9 +9,9 @@ const iv             =   enkripsi.randomBytes(16);
 module.exports       =  {
     enkrip: function(data, path) {
         try {
-            var cipher      =   enkripsi.createCipher(algorithm, 'adiinbase');
+            var cipher      =   enkripsi.createCipher(algorithm, 'penelitian_jaringan');
             var terengkrip  =   Buffer.concat([cipher.update(new Buffer.from(JSON.stringify(data),"utf8")), cipher.final()]);
-            FileSystem.writeFileSync(path + '.inbase',terengkrip);
+            FileSystem.writeFileSync(path + '.adi',terengkrip);
             return;
         } catch (error) {
             console.log(error + 'pusing :');
@@ -21,7 +21,7 @@ module.exports       =  {
     terjemaah: function(data) {
         try {
             var  data       =   FileSystem.readFileSync(data);
-            var  decipher   =   enkripsi.createDecipher(algorithm,'adiinbase');
+            var  decipher   =   enkripsi.createDecipher(algorithm,'penelitian_jaringan');
             var  terjemaah  =   Buffer.concat([decipher.update(data), decipher.final()]);
             return JSON.parse(terjemaah.toString());
         } catch (error) {

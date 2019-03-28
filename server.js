@@ -34,7 +34,7 @@ var format_save         =   '.adi';
 
 function Jalankan() {
     if (fs.existsSync(path_konfig+format_save)) {
-        
+        return Login();
     } else {
         perintah.close();
         SettingServer();  
@@ -139,33 +139,135 @@ function hubungkan() {
         const  database      =     bacagaris.createInterface({
             input: process.stdin,
             output: process.stdout,
-            prompt: 'Setting Database >'
-        });        
-        var   koneksi        =   mysql_module.createConnection({
-            host:       localhost_set[0],
-            user:       kridensial_mysql[0].user,
-            password:   kridensial_mysql[0].password
-        });  
-        koneksi.connect(function(pusing) {
-            if (pusing) {
-                spinner.fail(['Mysql tidak terhubung']);
-                database.close();
-                return SettingServer();
-            } else {
-                spinner.succeed(['mysql terhubung']);
-                database.prompt();
-            }
-        });
+            prompt: 'Database >'
+        }); 
+        if (kridensial_mysql.length <= 0) {
+            console.log('=================================');
+            console.log('==== kridensial belum diset =====');
+            console.log('=================================');
+            spinner.stop();
+            database.close();
+            return  SettingServer();
+        } else {
+            var   koneksi        =   mysql_module.createConnection({
+                host:       localhost_set[0],
+                user:       kridensial_mysql[0].user,
+                password:   kridensial_mysql[0].password
+            });  
+            koneksi.connect(function(pusing) {
+                if (pusing) {
+                    spinner.fail(['Mysql tidak terhubung']);
+                    database.close();
+                    return SettingServer();
+                } else {
+                    spinner.succeed(['mysql terhubung']);
+                    database.prompt();
+                    database.on('line',(valuedb) => {
+                        var dbhubungkan      =     mysql_module.createConnection({
+                            host:       localhost_set[0],
+                            user:       kridensial_mysql[0].user,
+                            password:   kridensial_mysql[0].password,
+                            database:   valuedb 
+                        });
+                        const spinner   =   ora(valuedb+ ' Menghubungkan database').start();
+                        dbhubungkan.connect(function(pusing) {
+                            if (pusing) {
+                                spinner.fail([valuedb+ ' Database tidak ada']);
+                                database.prompt();
+                            } else {
+                                spinner.succeed([valuedb+ ' Database Terhubung']);
+                                database.close();
+                                var simpan             =         bacagaris.createInterface({
+                                    input:      process.stdin,
+                                    output:     process.stdout,
+                                    prompt:     'Konfigurasi Simpan > '
+                                });
+                                simpan.prompt();
+                                simpan.on('line',(line) => {
+                                    switch (line.trim()) {
+                                        case 'ya':
+                                            simpan.close();
+                                            return Simpankonfig(valuedb);
+                                            break;
+                                        case 'tidak':
+                                            simpan.close();
+                                            return SettingServer();
+                                            break;
+                                        default:
+                                            console.log('================================================');
+                                            console.log('============ Pilih ya atau tidak ===============');
+                                            console.log('================================================');
+                                            simpan.prompt();
+                                            break;
+                                    }
+                                });
+                            }
+                        });
+                    });
+                }
+            });
+        }
+
     }
+}
 
+function Simpankonfig(database) {
+    var server_ip        =      localhost_set[0];
+    var user             =      kridensial_mysql[0].user;
+    var password         =      kridensial_mysql[0].password;
 
+    var simpan_group     =      {
+        server_ip:       server_ip,
+        user:            user,
+        password:        password,
+        database:        database
+    }
+    
+    let json_data       =     JSON.stringify(simpan_group);
+    const loading       =     ora('Buat Tabel ').start();
+    var koneksi         =     mysql_module.createConnection({
+        host:           server_ip,
+        user:           user,
+        password:       password,
+        database:       database
+    });
+    let password_enkrip        =        kode.enkripkomunikasi(password);
+    koneksi.connect(function(pusing) {
+        if (pusing) {
+            loading.fail(['tidak dapat meyimpan']);
+            return hubungkan();
+        } else {
+            var simpan_konfig    =    "CREATE TABLE konfig (server_ip VARCHAR(255),user VARCHAR(255),password TEXT,pilih_database VARCHAR(255))";
+            koneksi.query(simpan_konfig, function(pusing, hasil) {
+                if (pusing) {
+                    loading.fail(['tidak dapat membuat tabel']);
+                    return hubungkan();
+                } else {
+                    loading.succeed(['Tabel sudah dibuat']);
+                    const tunggu_simpan      =     ora('Simpan Konfig').start();
+                    var simpan_kfdb          =     "INSERT INTO konfig (server_ip,user,password,pilih_database) VALUES ('"+server_ip+"','"+user+"','"+password_enkrip+"','"+database+"')";
+                    koneksi.query(simpan_kfdb, function(pusing, hasil) {
+                        if (pusing) {
+                            tunggu_simpan.fail(['konfig tidak tersimpan']);
+                            return SettingServer();
+                        } else {
+                            tunggu_simpan.succeed(['Tersimpan']);
+                            kode.enkrip(json_data, path_konfig);
+                            return Jalankan();
+                        }
+                    });
+                }
+            });
+        }
+    });
+    // kode.enkrip(json_data, path_konfig);
 }
 
 function mysql() {
     const  localhost    =   bacagaris.createInterface({
         input: process.stdin,
         output: process.stdout,
-        prompt: 'localhost > '        
+        prompt: 'Server IP > '        
     });
     localhost.prompt();
     localhost.on('line', (line) => {
@@ -229,4 +331,8 @@ function PasswordMysql(user) {
         return SettingServer();
     });
     mutableStdout.muted     =   true;
+}
+
+function Login() {
+    
 }
