@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Control System</title>
+    <link rel="stylesheet" href="control/style.css">
+    <link rel="stylesheet" href="control/css/bootstrap.css">
+    <script src="vendor/jquery/jquery-3.2.1.min.js"></script>
+    <script src="control/js/bootstrap.js"></script>
+	<script src="/socket.io/socket.io.js"></script>
+	<script src="/js/sweetalert.js"></script>
+	<script src="notify.js"></script>    
+    
+
+</head>
+<body>
+    <div class="container">
+        <div class="konten">
+            <div class="status_layanan">
+                <p>Status Layanan server :</p>
+                <!-- <span class="badge badge-danger">
+                    Tidak berjalan
+                </span> -->
+            </div>
+            
+            <div class="route_add">
+                <h3>Route Frontend</h3>
+                <div class="row">
+                    <div class="col-6">
+                        
+                        <div class="row">
+                            <div class="col-6">
+                                <!-- <input type="text" id="route" class="form-control" placeholder="Route"> -->
+                                <div class="push_route">
+
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <button type="button" id="setRoute" class="btn btn-primary" onclick="setRoute()">Set</button>
+                                <button type="button" id="addRoute" class="btn btn-primary" onclick="addRoute()">Add Route</button>                                                               
+                                <div class="row">
+                                    <div class="col-4">
+                                        <button type="button" id="unsetRoute" class="btn btn-danger" onclick="UnsetRoute()">Unset Route</button> 
+                                    </div>
+                                    <div class="col-4">
+                                        <button type="button" id="addEditRoute" onclick="AddRoutes()" class="btn btn-primary">Add Route</button>
+                                    </div>
+                                    <div class="col-4">
+                                        <button type="button" id="SetRouteEdit" onclick="setRouteEdit()" class="btn btn-primary">Set Route</button>
+                                    </div>
+                                </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="loading">
+        <div class="sk-folding-cube">
+            <div class="sk-cube1 sk-cube"></div>
+            <div class="sk-cube2 sk-cube"></div>
+            <div class="sk-cube4 sk-cube"></div>
+            <div class="sk-cube3 sk-cube"></div>
+          </div>
+    </div>
+</body>
+    <script src="control/main.js"></script>
+</html>

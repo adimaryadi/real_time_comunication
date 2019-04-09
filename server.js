@@ -1,11 +1,14 @@
-var framework        =    require('express');
+var framework        =    require('express')();
 var http             =    require('http').Server(framework);
-const file           =   require('./alat/bacafile');
-const kode           =   require('./alat/enkripsi');
+const file           =    require('./alat/bacafile');
+const kode           =    require('./alat/enkripsi');
 const bacagaris      =    require('readline');
 const fs             =    require('fs');
 const ora            =    require('ora');
 var mysql_module     =    require('mysql');
+const isNumber       =    require('is-number');
+const detect         =    require('detect-port');
+var io               =    require('socket.io')(http);
 const perintah       =    bacagaris.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -34,6 +37,7 @@ var format_save         =   '.adi';
 
 function Jalankan() {
     if (fs.existsSync(path_konfig+format_save)) {
+        perintah.close();
         return Login();
     } else {
         perintah.close();
@@ -334,5 +338,453 @@ function PasswordMysql(user) {
 }
 
 function Login() {
-    
+    var login               =           bacagaris.createInterface({
+        input:          process.stdin,
+        output:         process.stdout,
+        prompt:   'User Mysql > '
+    });
+    login.prompt();
+    let file_login          =           kode.terjemaah(path_konfig+ format_save);
+    let json_file           =           JSON.parse(file_login);
+    login.on('line',(user) => {
+        if (user == json_file.user) {
+            login.close();
+            return Password(json_file);
+        } else {
+            console.log('Akses ditolak');
+            login.prompt();
+        }
+    });
 }
+
+function Password(data) {
+    var mutableStdout   =   new Writable({
+        write: function(chunk, encoding, callback) {
+            if(!this.muted)
+            process.stdout.write(chunk,encoding);
+            callback();
+        }
+    });
+
+    mutableStdout.muted     =  false;
+    var password            =  bacagaris.createInterface({
+        input:     process.stdin,
+        output:    mutableStdout,
+        terminal:  true
+    });
+
+    password.question('Password: ', function(password) {
+        if (password == data.password) {
+            return ControllerServer(data);
+        } else {
+            console.log('=========================================');
+            console.log('=========== Password Salah ==============');
+            console.log('=========================================');
+            return Login();
+        }
+    });
+    mutableStdout.muted     =   true;
+}
+
+function ControllerServer(data) {
+    console.log('====================================================');
+    console.log('===== Selamat Datang ' + data.user + ' =============');
+    console.log('===== Perangkat lunak Versi 1.0.0 ==================');
+    console.log('====================================================');
+    var controller          =       bacagaris.createInterface({
+        input:      process.stdin,
+        output:     process.stdout,
+        prompt:     data.user + ' > '
+    });
+    controller.prompt();
+
+    controller.on('line', (control) => {
+        switch (control.trim()) {
+            case 'serve':
+                controller.close();
+                ServerRun();
+                break;
+            case 'unset port':
+                controller.close();
+                DeletePort();
+                break;
+            case 'serve berhenti':
+                controller.close();
+                ServeStop();
+                break;
+            case 'unset konfig':
+                controller.close();
+            return HapusKonfig(data);
+            case 'service jalankan':
+            controller.close();
+            return Service();
+            default:
+                console.log('serve                          Menjalankan Server');
+                console.log('unset port             Menghapus Konfigurasi Port');
+                console.log('serve berhenti                Menghentikan Server');
+                console.log('unset konfig         Menghapus konfigurasi server');
+                controller.prompt();
+                break;
+        }
+    });
+}
+
+if (fs.existsSync(path_konfig+format_save)) {
+    var Portal                 =        'konfig/port';
+    let  file_konfig           =       kode.terjemaah(path_konfig+format_save);
+    json_file                  =       JSON.parse(file_konfig);   
+}
+
+function HapusKonfig(data) {
+    if (fs.existsSync(path_konfig+format_save)) {
+        var koneksi         =    mysql_module.createConnection({
+            host:           data.server_ip,
+            user:           data.user,
+            password:       data.password,
+            database:       data.database
+        });
+        koneksi.connect(function(pusing) {
+            if (pusing) {
+                console.log('========== tidak dapat menghapus konfigurasi =====================');
+                return ControllerServer(data);
+            } else {
+                var hapus_konfig    =    "DROP TABLE konfig";
+                koneksi.query(hapus_konfig, function(pusing, hasil) {
+                    if (pusing) {
+                        console.log('================ tidak dapat menghapus file =================');
+                    } else {
+                        console.log('==================== konfigurasi dari database sudah dihapus ================');
+                        fs.unlink(path_konfig+format_save, (pusing) => {
+                            if (pusing) {
+                                console.log('============= File konfigurasi tidak bisa di hapus ===================');
+                                return  ControllerServer(json_file);
+                            } else {
+                                console.log('================ konfigurasi file sudah di hapus =========================');
+                                console.log('================ Konfigurasi ulang ==================================');
+                                return Jalankan();
+                            }
+                        });
+                    }
+                });
+            }
+        });
+
+    } else {
+        console.log('================== file konfig tidak ada =====================');
+        return Jalankan();
+    }
+}
+
+
+
+
+function ServeStop() {
+    let data        =       kode.terjemaah(Portal+format_save);
+    let port        =       data.port;
+    detect(port, (pusing, __port) => {
+        if (pusing) {
+            console.log('============= gagal menghentikan server ===============');
+            return ControllerServer(json_file);
+        }
+
+        if (port == __port) {
+            console.log('=======================================================');
+            console.log('================ Server tidak sedang berjalan ========');
+            console.log('=======================================================');
+            return ControllerServer(json_file);
+        } else {
+            http.close();
+            console.log('================== Server Berhenti ====================');
+            return ControllerServer(json_file);
+        }
+    });  
+}
+
+function DeletePort() {
+    if (fs.existsSync(Portal+format_save)) {
+        fs.unlink(Portal+format_save, (pusing) => {
+            if (pusing) {
+                console.log('========= gagal menghapus file ============');
+                return ControllerServer(json_file);
+            } else {
+                console.log('========= Konfigurasi Port sudah dihapus ==');
+                return ControllerServer(json_file);
+            }
+        });
+    } else {
+        console.log('============= Konfig port tidak ada ===============');
+        return ControllerServer(json_file);
+    }
+}
+
+
+function ServerRun() {
+    if (fs.existsSync(Portal+format_save)) {
+        JalankanServer();
+    } else {
+        return SettingPort();
+    }
+}
+
+function WebControll() {
+    framework.get('/', function(req,res) {
+        res.sendFile(__dirname + '/login/index.html');
+    });
+    framework.get('/vendor/bootstrap/css/bootstrap.min.css', function(req,res) {
+        res.sendFile(__dirname + '/login/vendor/bootstrap/css/bootstrap.min.css');
+    });
+    framework.get('/fonts/font-awesome-4.7.0/css/font-awesome.min.css', function(req,res) {
+        res.sendFile(__dirname + '/login/fonts/font-awesome-4.7.0/css/font-awesome.min.css');
+    });
+    framework.get('/vendor/css-hamburgers/hamburgers.min.css', function(req,res) {
+        res.sendFile(__dirname + '/login/vendor/css-hamburgers/hamburgers.min.css');
+    });
+    framework.get('/vendor/animate/animate.css', function(req,res) {
+        res.sendFile(__dirname + '/login/vendor/animate/animate.css');
+    });
+    framework.get('/vendor/select2/select2.min.css', function(req,res) {
+        res.sendFile(__dirname + '/login/vendor/select2/select2.min.css');
+    });
+    framework.get('/css/util.css', function(req,res) {
+        res.sendFile(__dirname + '/login/css/util.css');
+    });
+    framework.get('/css/main.css', function(req,res) {
+        res.sendFile(__dirname + '/login/css/main.css');
+    });
+    framework.get('/vendor/jquery/jquery-3.2.1.min.js', function(req,res) {
+        res.sendFile(__dirname + '/login/vendor/jquery/jquery-3.2.1.min.js');
+    });
+    framework.get('/vendor/bootstrap/js/popper.js', function(req,res) {
+        res.sendFile(__dirname + '/login/vendor/bootstrap/js/popper.js');
+    });
+    framework.get('/vendor/bootstrap/js/bootstrap.min.js', function(req,res) {
+        res.sendFile(__dirname + '/login/vendor/bootstrap/js/bootstrap.min.js');
+    });
+    framework.get('/vendor/select2/select2.min.js', function(req,res) {
+        res.sendFile(__dirname + '/login/vendor/select2/select2.min.js');
+    });
+    framework.get('/vendor/tilt/tilt.jquery.min.js', function(req,res) {
+        res.sendFile(__dirname + '/login/vendor/tilt/tilt.jquery.min.js');
+    });
+    framework.get('/js/main.js', function(req,res) {
+        res.sendFile(__dirname + '/login/js/main.js');
+    });
+    framework.get('/notify.js', function(req,res) {
+        res.sendFile(__dirname + '/login/js/notify.js');
+    });
+    framework.get('/fonts/poppins/Poppins-Bold.ttf', function(req,res) {
+        res.sendFile(__dirname + '/login/fonts/poppins/Poppins-Bold.ttf');
+    });
+    framework.get('/fonts/poppins/Poppins-Medium.ttf', function(req,res) {
+        res.sendFile(__dirname + '/login/fonts/poppins/Poppins-Medium.ttf');
+    });
+    framework.get('/fonts/font-awesome-4.7.0/fonts/fontawesome-webfont.woff2', function(req,res) {
+        res.sendFile(__dirname + '/login/fonts/font-awesome-4.7.0/fonts/fontawesome-webfont.woff2');
+    });
+    framework.get('/fonts/montserrat/Montserrat-Bold.ttf', function(req,res) {
+        res.sendFile(__dirname + '/login/fonts/montserrat/Montserrat-Bold.ttf');
+    });
+    framework.get('/js/sweetalert.js', function(req,res) {
+        res.sendFile(__dirname + '/login/js/sweetalert.js');
+    });
+    framework.get('/fonts/poppins/Poppins-Regular.ttf', function(req,res) {
+        res.sendFile(__dirname + '/login/fonts/poppins/Poppins-Regular.ttf');
+    });
+    framework.get('/images/icons/favicon.ico', function(req,res) {
+        res.sendFile(__dirname + '/login/images/icons/favicon.ico');
+    });
+    framework.get('/comunication.js', function(req,res) {
+        res.sendFile(__dirname + '/login/js/comunication.js');
+    });
+    framework.get('/images/img-01.png', function(req,res) {
+        res.sendFile(__dirname + '/login/images/img-01.png');
+    });
+    framework.get('/control', function(req,res) {
+        res.sendfile(__dirname + '/control/index.html');
+    });
+    framework.get('/control/style.css', function(req,res) {
+        res.sendfile(__dirname + '/control/style.css');
+    });
+    framework.get('/control/main.js', function(req,res) {
+        res.sendfile(__dirname + '/control/main.js');
+    });
+    framework.get('/favicon.ico', function(req,res) {
+        res.sendfile(__dirname + '/control/favicon.ico');
+    });
+    framework.get('/control/css/bootstrap.css', function(req,res) {
+        res.sendFile(__dirname + '/control/css/bootstrap.css');
+    });
+    framework.get('/control/js/bootstrap.js', function(req,res) {
+        res.sendFile(__dirname + '/control/js/bootstrap.js');
+    });
+}
+let path_data             =      'data/route';
+function JalankanServer() {
+    let data        =       kode.terjemaah(Portal+format_save);
+    let port        =       data.port;
+    let cek_port    =       isNumber(port);
+    if (cek_port == true) {
+        detect(port, (pusing, __port) => {
+            if (pusing) {
+                console.log('============== gagal menjalankan server =================');
+                return ControllerServer(json_file);
+            }
+            if (port == __port) {
+                http.listen(port, function() {
+                    console.log('=====================================================');
+                    console.log('======== Server Berjalan Port Akses '+ port+ ' ======');
+                    console.log('=====================================================');
+                });
+                WebControll();
+                return ControllerServer(json_file);
+            } else {
+                console.log('============== Server Sedang Berjalan ===================');
+                return ControllerServer(json_file);
+            }
+        });
+    } else {
+        console.log('================== Port Salah ====================');
+        return ControllerServer(json_file);
+    }
+}
+
+function SettingPort() {
+    console.log('============== Port Belum disetting ===============');
+    var  settingPort    =    bacagaris.createInterface({
+        input:     process.stdin,
+        output:    process.stdout,
+        prompt:    'Setting Port > '
+    });
+    settingPort.prompt();
+    settingPort.on('line',(line) => {
+        let konfig      =       { port:  line };
+        kode.enkrip(konfig, Portal);
+        console.log('Port Tersimpan');
+        settingPort.close();
+        return ServerRun();
+    });
+}
+
+// this socket communication
+let path_token_save      =       'konfig/token/';
+io.on('connection', function(socket) {
+    socket.on('login', function(data) {
+        return WebLogin(data);
+    });
+    socket.on('ip_request', function(ip) {
+        console.log('===============================================');
+        console.log('================ '+ ip+ ' =====================');
+        console.log('====== Button login di klik ip tersebut =======');
+        console.log('===============================================');
+        console.log('===============================================');
+    });
+    socket.on('cek_token', function(token) {
+        let terjemaah           =        kode.komunikasi(token);
+
+        if (fs.existsSync(path_token_save+terjemaah+format_save)) {
+            let file_token      =        kode.terjemaah(path_token_save+terjemaah+format_save);
+            if (terjemaah == file_token) {
+                io.emit('hasil_cek','betul');
+            } else {
+                io.emit('hasil_cek','salah');
+            }
+        } else {
+            io.emit('hasil_cek','salah');
+        }
+    });
+    socket.on('hapus_token',function(token) {
+        let terjemaah            =      kode.komunikasi(token);
+        fs.unlink(path_token_save+terjemaah+format_save, (pusing) => {
+            if (pusing) {
+                console.log('==================================================');
+                console.log('==== token tidak bisa di hapus ===================');
+                console.log('==================================================');
+            }
+            io.emit('hasil_hapus_token','token_terhapus');
+        });
+    });
+
+    socket.on('route', function(data) {
+        RouteSet(data);
+    });
+
+    socket.on('list_route', function(token) {
+        DataRoute(token);
+    });
+    socket.on('unset_route', function(unset_route) {
+        let terjemaah_token     =     kode.komunikasi(unset_route);
+        let token_file          =     kode.terjemaah(path_token_save+terjemaah_token+format_save);
+        if (token_file == terjemaah_token) {
+            fs.unlink(path_data+format_save, (pusing) => {
+                if (pusing) {
+                    io.emit('unset_route_status','tidak_berhasil');
+                }
+                io.emit('unset_route_status','berhasil');
+                console.log('============================================');
+                console.log('====== Route Unset Frontend==');
+            });
+        } else {
+            io.emit('unset_route_status','tidak_berhasil');
+        }
+    });
+});
+
+
+function WebLogin(login) {
+    let request_login      =     kode.komunikasi(login);
+    let json_request       =     JSON.parse(request_login);
+    let file_local         =     kode.terjemaah(path_konfig+format_save);
+    let local_json         =     JSON.parse(file_local);
+    if (json_request.user == local_json.user && json_request.password == local_json.password) {
+        let status_kode    =     kode.enkripkomunikasi('betul');
+        
+        var date                =     new Date();
+        var second              =     date.getSeconds();
+        var file_kridensial     =     kode.terjemaah(path_konfig+format_save);
+        var enkrip              =     kode.enkripkomunikasi(file_kridensial);
+        var token               =     enkrip+second;
+        console.log('===================================================');
+        console.log('=== Set token '+ token+ ' =========================');
+        console.log('===================================================');
+        kode.enkrip(token, path_token_save+token);
+        io.emit('login_status',status_kode);
+        io.emit('token', token);
+    } else {
+        let status_kode    =     kode.enkripkomunikasi('salah');
+        io.emit('login_status',status_kode);
+    }
+}
+
+function RouteSet(data) {
+    let terjemaah1        =      kode.komunikasi(data);
+    let terjemaah_json    =      JSON.parse(terjemaah1);
+    let token_            =      terjemaah_json.token;
+    let terjemaah_token   =      kode.komunikasi(token_);
+    
+    if (fs.existsSync(path_token_save+terjemaah_token+format_save)) {
+        let data_route           =     terjemaah_json.data;
+        let terjemaah_data       =     kode.komunikasi(data_route);
+        io.emit('status__route','sukses');
+        kode.enkrip(terjemaah_data, path_data);
+    } else {
+        io.emit('hasil_cek','salah');
+    }
+}
+
+function DataRoute(token) {
+    let token_      =     kode.komunikasi(token);
+    if(fs.existsSync(path_token_save+token_+format_save)) {
+        if (fs.existsSync(path_data+format_save)) {
+            let route_terjemaah     =    kode.terjemaah(path_data+format_save);
+            let enkrip_komunikasi   =    kode.enkripkomunikasi(route_terjemaah);
+
+            io.emit('hasil_route', enkrip_komunikasi);
+        } else {
+            io.emit('hasil_route','tidak_ada');
+        }
+    } else {
+        io.emit('hasil_cek','salah');
+    }
+}
+// end socket communication
+
