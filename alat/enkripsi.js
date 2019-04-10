@@ -5,8 +5,27 @@ var atob             =   require('atob');
 var btoa             =   require('btoa');
 const key            =   enkripsi.randomBytes(32);
 const iv             =   enkripsi.randomBytes(16);
+var CryptoJS         =   require("crypto-js");
+
+let kunci_AES        =   'adiprogrammingExpertforminten';
 
 module.exports       =  {
+    terjemaah_AES: function(data) {
+        if (data == undefined) {
+            return console.log('======================================');
+            return console.log('==== Crpto data terjemaah tidak ada ==');
+            return console.log('======================================');
+        } else {
+            try {
+                var     bytes       =       CryptoJS.AES.decrypt(data.toString(), kunci_AES);
+                var     hasil       =       bytes.toString(CryptoJS.enc.Utf8);
+                return  hasil;
+            } catch (pusing) {
+                console.log(pusing+ ' kesalahan terjemaah AES');
+            }           
+        }
+
+    },
     enkrip: function(data, path) {
         try {
             var cipher      =   enkripsi.createCipher(algorithm, 'penelitian_jaringan');

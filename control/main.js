@@ -158,3 +158,14 @@ socket.on('unset_route_status', function(hasil) {
         });
     }
 });
+
+socket.emit('status_service',enkrip);
+
+socket.on('hasil_status_route', function(hasil) {
+    if (hasil == true) {
+        $('.status_layanan').append('<span class="badge badge-success">Jalan</span>');
+    } else {
+        $('.status_layanan').append('<span class="badge badge-danger">Tidak berjalan</span>');
+    }
+});
+// socket.emit('pertama','pertama');

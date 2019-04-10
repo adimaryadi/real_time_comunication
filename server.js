@@ -415,9 +415,6 @@ function ControllerServer(data) {
             case 'unset konfig':
                 controller.close();
             return HapusKonfig(data);
-            case 'service jalankan':
-            controller.close();
-            return Service();
             default:
                 console.log('serve                          Menjalankan Server');
                 console.log('unset port             Menghapus Konfigurasi Port');
@@ -727,6 +724,9 @@ io.on('connection', function(socket) {
             io.emit('unset_route_status','tidak_berhasil');
         }
     });
+    socket.on('status_service', function(token) {
+        CekService(token);
+    });
 });
 
 
@@ -788,3 +788,60 @@ function DataRoute(token) {
 }
 // end socket communication
 
+
+let status_service          =       true;
+io.on('connection', function(socket) {
+    let file_route          =       kode.terjemaah(path_data+format_save);
+    let file_route_json     =       JSON.parse(file_route);
+    // console.log(file_route_json.length);
+   
+    for (let s = 0; s < file_route_json.length; s++) {
+        
+        socket.on(''+file_route_json[s].route+'', function(hasil) {
+            let terjemaah_AES               =       kode.terjemaah_AES(hasil);
+            let JSON_terjemaah              =       JSON.parse(terjemaah_AES);
+            let cek_kridensial              =       JSON_terjemaah.kridensial;
+            let kridensial_json             =       JSON.parse(cek_kridensial);
+            if (kridensial_json.user == json_file.user && kridensial_json.password == json_file.password) {
+
+                console.log(JSON_terjemaah.token);
+            } else {
+                let token       =       JSON_terjemaah.token;
+                io.emit('response_'+file_route_json[s].route+token,'mysql akses ditolak');
+            }
+        });
+
+    }
+});
+let koneksi_io            =           'disconnect';
+function Service() {
+    if (status_service == false) {
+        JalankanService();
+        return ControllerServer(json_file);
+    } else {
+        console.log('===============================');
+        console.log('===== Service sedang berjalan =');
+        console.log('===============================');
+        return ControllerServer(json_file);
+    }
+}
+
+function JalankanService() {
+    status_service              =    true;
+    koneksi_io                  =    'connection';
+}
+
+function CekService(token) {
+
+    let terjemaah_token         =    kode.komunikasi(token);
+    if (fs.existsSync(path_token_save+terjemaah_token+format_save)) {
+        let file_token              =        kode.terjemaah(path_token_save+terjemaah_token+format_save);
+        if (terjemaah_token == file_token) {
+            io.emit('hasil_status_route',status_service);
+        } else {
+            io.emit('hasil_cek','salah');
+        }
+    } else {
+        io.emit('hasil_cek','salah');
+    }
+}
