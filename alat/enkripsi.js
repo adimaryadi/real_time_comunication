@@ -12,9 +12,9 @@ let kunci_AES        =   'adiprogrammingExpertforminten';
 module.exports       =  {
     terjemaah_AES: function(data) {
         if (data == undefined) {
-            return console.log('======================================');
-            return console.log('==== Crpto data terjemaah tidak ada ==');
-            return console.log('======================================');
+            console.log('======================================');
+            console.log('==== Crpto data terjemaah tidak ada ==');
+            console.log('======================================');
         } else {
             try {
                 var     bytes       =       CryptoJS.AES.decrypt(data.toString(), kunci_AES);
@@ -25,6 +25,16 @@ module.exports       =  {
             }           
         }
 
+    },
+    enkripsi_AES: function(data) {
+        if (data == undefined) {
+            console.log('======================================');
+            console.log('==== Crpto data enkrip tidak ada =====');
+            console.log('======================================');           
+        } else {
+            var   enkripsi     =    CryptoJS.AES.encrypt(data, kunci_AES).toString();
+            return enkripsi;
+        }
     },
     enkrip: function(data, path) {
         try {

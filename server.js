@@ -9,6 +9,7 @@ var mysql_module     =    require('mysql');
 const isNumber       =    require('is-number');
 const detect         =    require('detect-port');
 var io               =    require('socket.io')(http);
+var database         =    require('./alat/koneksi');
 const perintah       =    bacagaris.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -415,15 +416,61 @@ function ControllerServer(data) {
             case 'unset konfig':
                 controller.close();
             return HapusKonfig(data);
+            case 'migrasi auth':
+                controller.close();
+            return MigrasiAuth();
+            case 'drop auth':
+                controller.close();
+            return DropAuth();
             default:
                 console.log('serve                          Menjalankan Server');
                 console.log('unset port             Menghapus Konfigurasi Port');
                 console.log('serve berhenti                Menghentikan Server');
                 console.log('unset konfig         Menghapus konfigurasi server');
+                console.log('migrasi auth        Generate login singkat di web');
                 controller.prompt();
                 break;
         }
     });
+}
+
+function DropAuth() {
+    var pertanyaan             =        bacagaris.createInterface({
+        input:             process.stdin,
+        output:            process.stdout,
+        prompt:            'Apakah Yakin auth didrop ? '
+    });
+    pertanyaan.prompt();
+
+    pertanyaan.on('line', (line) => {
+        switch (line.trim()) {
+            case 'ya':
+                TabelAuthDelete();
+                break;
+            case 'tidak':
+                pertanyaan.close();
+                return ControllerServer(json_file);
+            default:
+                console.log('=======================================================');
+                console.log('=============== Jawab ya atau tidak ===================');
+                console.log('=======================================================');
+                break;
+        }
+    });
+}
+
+function TabelAuthDelete() {
+    const deleteTabel      =      ora(['Drop table penguna']).start();
+    let query              =      "DROP TABLE penguna";
+    database.database(query, function(hasil) {
+        if (hasil == 'query_salah') {
+            deleteTabel.fail(['Gagal drop auth']);
+            return ControllerServer(json_file);
+        } else {
+            
+        }
+    });
+    
 }
 
 if (fs.existsSync(path_konfig+format_save)) {
@@ -472,6 +519,64 @@ function HapusKonfig(data) {
     }
 }
 
+
+function MigrasiAuth() {
+    const loading     =       ora('Migrasi authentifikasi').start();
+    var koneksi       =       mysql_module.createConnection({
+        host:        json_file.server_ip,
+        user:        json_file.user,
+        password:    json_file.password,
+        database:    json_file.database
+    });
+
+    koneksi.connect(function(pusing) {
+        if (pusing) {
+            loading.fail(['Kesalahan kridensial => '+ pusing]);
+            return ControllerServer(json_file);
+        } else {
+            loading.succeed(['Terhubung database']);
+            const kirim_loading         =    ora(['Tabel penguna membuat ']).start();
+            var buat_tabel_login        =    "CREATE TABLE penguna (id INT AUTO_INCREMENT PRIMARY KEY,nama VARCHAR(255), email VARCHAR(255),password TEXT NOT NULL)";
+            koneksi.query(buat_tabel_login, function(pusing, hasil) {
+                if (pusing) {
+                    kirim_loading.fail(['Gagal Membuat tabel => '+ pusing]);
+                    return ControllerServer(json_file);
+                } else {
+                    kirim_loading.succeed(['Tabel penguna termigrasi']);
+                    let password           =       '1adimaryadiA';
+                    let enkrip_AES         =        kode.enkripsi_AES(password);
+                    var kirim_user         =       "INSERT INTO penguna (nama,email,password) VALUES ('admin','admin@realtime.com','"+enkrip_AES+"')";
+                    const insert_user      =       ora(['penguna insert']).start();
+                    koneksi.query(kirim_user, function(pusing, hasil) {
+                        if (pusing) {
+                            insert_user.fail(['penguna insert gagal => '+pusing]);
+                            return ControllerServer(json_file);
+                        } else {
+                            insert_user.succeed(['user termigrasi']);
+                            const tabel_token     =      ora(['Tabel token membuat']).start();
+                            var   buat_tabel      =      "CREATE TABLE token_penguna (id INT AUTO_INCREMENT PRIMARY KEY,token TEXT NOT NULL, id_penguna VARCHAR(255),nama VARCHAR(255),ip_address VARCHAR(255))";
+                            koneksi.query(buat_tabel, function(pusing, hasil) {
+                                if (pusing) {
+                                    tabel_token.fail(['tabel token_penguna tidak bisa di buat => '+ pusing]);
+                                    return ControllerServer(json_file);
+                                } else {
+                                    tabel_token.succeed(['tabel token_penguna termigrasi']);
+                                    console.log('=========================================================');
+                                    console.log('================== Default Login Web Frontend ===========');
+                                    console.log('====== Email : admin@realtime.com =======================');
+                                    console.log('====== Password : '+ password+' =========================');
+                                    console.log('====== Enkripsi AES : '+ enkrip_AES+' ===================');
+                                    console.log('=========================================================');                                    
+                                    return ControllerServer(json_file);
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        }
+    });
+}
 
 
 
@@ -803,8 +908,36 @@ io.on('connection', function(socket) {
             let cek_kridensial              =       JSON_terjemaah.kridensial;
             let kridensial_json             =       JSON.parse(cek_kridensial);
             if (kridensial_json.user == json_file.user && kridensial_json.password == json_file.password) {
-
-                console.log(JSON_terjemaah.token);
+                let token       =       JSON_terjemaah.token;
+                // let koneksi     =       mysql_module.createConnection({
+                //     host:           kridensial_json.server,
+                //     user:           kridensial_json.user,
+                //     password:       kridensial_json.password,
+                //     database:       kridensial_json.database
+                // });
+                // koneksi.connect(function(pusing) {
+                //     if (pusing) {
+                //         io.emit('response_'+file_route_json[s].route+token,'Kesalahan kridensial => ' + pusing);
+                //     } else {
+                //         koneksi.query(JSON_terjemaah.query, function(pusing, hasil) {
+                //             if (pusing) {
+                //                 io.emit('response_'+file_route_json[s].route+token,'Kesalahan Query => ' + pusing);
+                //             } else {
+                //                 let status      =   'transaksi_ok';
+                //                 let group       =    {
+                //                     status:     status,
+                //                     hasil:      hasil
+                //                 }
+                //                 let JSON_group          =    JSON.stringify(group);
+                //                 let enkrip_call_back    =    kode.enkripsi_AES(JSON_group);
+                //                 console.log('=============================================');
+                //                 console.log('====== Transaction Data IP '+JSON_terjemaah.ip_addr);
+                //                 console.log('=============================================');
+                //                 io.emit('response_'+file_route_json[s].route+token,enkrip_call_back);
+                //             }
+                //         });
+                //     }
+                // });
             } else {
                 let token       =       JSON_terjemaah.token;
                 io.emit('response_'+file_route_json[s].route+token,'mysql akses ditolak');
@@ -812,7 +945,142 @@ io.on('connection', function(socket) {
         });
 
     }
+    // authentification khusus untuk login penguna
+    socket.on('auth', function(data) {
+        let   terjemaah_data        =       kode.terjemaah_AES(data);
+        let   JSON_terjemaah        =       JSON.parse(terjemaah_data);
+        let   kridensial            =       JSON_terjemaah.kridensial;
+        let   JSON_kridensial       =       JSON.parse(kridensial);
+        let   token                 =       JSON_terjemaah.token;
+        if (JSON_kridensial.user == json_file.user && JSON_kridensial.password == json_file.password) {
+            let login               =       JSON_terjemaah;
+            Login_Data(login);
+        } else {
+            io.emit('auth_response'+token,'kridensial salah');
+        }
+    });
+    
+    socket.on('cek_token', function(data) {
+        let terjemaah           =       kode.terjemaah_AES(data);
+        let terjemaah_json      =       JSON.parse(terjemaah);
+        let token_cek           =       terjemaah_json.token_cek;
+        let url_token           =       terjemaah_json.token_link;
+        let cek_data            =       "SELECT * FROM token_penguna WHERE token = '"+token_cek+"'";
+        database.database(cek_data, function(hasil) {
+            if (hasil >= 1) {
+                console.log('token ada');
+            } else {
+                console.log('token tidak ada');
+            }
+        });
+    });
+
 });
+
+function  Login_Data(request_data) {
+    let login        =      request_data.login;
+    let token        =      request_data.token;
+
+    let koneksi      =      mysql_module.createConnection({
+        host:         json_file.server_ip,
+        user:         json_file.user,
+        password:     json_file.password,
+        database:     json_file.database
+    });
+
+    koneksi.connect(function(pusing) {
+        if (pusing) {
+            io.emit('auth_response'+token,'Kesalahaan menghubungkan => '+ pusing);    
+        } else {
+            koneksi.query("SELECT * FROM penguna ", function(pusing,hasil) {
+                if (pusing) {
+                    io.emit('auth_response'+token,'Kesalahaan query => '+ pusing);   
+                } else {
+                    let data      =       [];
+                    for (let o = 0; o < hasil.length; o++) {
+                        let terjemaah_password   =   kode.terjemaah_AES(hasil[o].password);
+                        data.push({email: hasil[o].email, password: terjemaah_password});
+                    }
+                    let request_password               =       login.password;
+                    let terjemah_password              =       kode.terjemaah_AES(request_password);
+                    let users_access                   =       data.find(data => { return data.email == login.email && data.password == terjemah_password; });
+                    if (users_access == undefined) {
+                        let json_text           =       JSON.stringify('user salah');
+                        let enkripsi            =       kode.enkripsi_AES(json_text);
+                        io.emit('auth_response'+token,enkripsi);
+                    } else {
+                        let email                      =       users_access.email;
+                        koneksi.query("SELECT * FROM penguna WHERE email = '"+email+"'", function(pusing, hasil) {
+                            if (pusing) {
+                                console.log('Kesalahan Query => ' + pusing);
+                            } else {
+                                let ip_address          =       request_data.ip_addr;
+                                let id                  =       hasil[0].id;
+                                let nama                =       hasil[0].nama;
+                                let password            =       hasil[0].password;
+                                let data_token          =       nama+ password;
+                                let token_user          =       kode.enkripsi_AES(data_token);
+                                koneksi.query("SELECT * FROM token_penguna WHERE id_penguna = '"+id+"'", function(pusing, hasil_cek_id) {
+                                    if (pusing) {
+                                        console.log('kesalahan dari query => ' + pusing);
+                                    } else {
+                                        if (hasil_cek_id.length >= 1) {
+                                            let delete_token        =    "DELETE FROM token_penguna WHERE id_penguna = '"+id+"'";
+                                            koneksi.query(delete_token, function(pusing, terhapus) {
+                                                if (pusing) {
+                                                    console.log('Kesalahan Query => '+ pusing);
+                                                    io.emit('auth_response'+token, 'erorr query => '+ pusing);
+                                                } else {
+                                                    const token_simpan      =    ora('loggin namanya => '+ nama);
+                                                    koneksi.query("INSERT INTO token_penguna (token,id_penguna,nama,ip_address) VALUES ('"+token_user+"','"+id+"','"+nama+"','"+ip_address+"')", function (pusing,hasil) {
+                                                        if (pusing) {
+                                                            token_simpan.fail(['kesalahan query => ' + pusing]);
+                                                            io.emit('auth_response'+token,'erorr query =>' + pusing);
+                                                        } else {
+                                                            koneksi.query("SELECT * FROM token_penguna WHERE id_penguna = '"+id+"'", function(pusing, hasil_cek) {
+                                                                if (pusing) {
+                                                                    io.emit('auth_response'+token,'erorr query => '+ pusing);
+                                                                } else {
+                                                                    let json_encode         =   JSON.stringify(hasil_cek);
+                                                                    let enkrip_data         =   kode.enkripsi_AES(json_encode);
+                                                                    io.emit('auth_response'+token,enkrip_data);                                                                    
+                                                                }
+                                                            });
+                                                        }
+                                                    });                                                   
+                                                }
+                                            });
+                                        } else {
+                                            const token_simpan      =    ora('loggin namanya => '+ nama);
+                                            koneksi.query("INSERT INTO token_penguna (token,id_penguna,nama,ip_address) VALUES ('"+token_user+"','"+id+"','"+nama+"','"+ip_address+"')", function (pusing,hasil) {
+                                                if (pusing) {
+                                                    token_simpan.fail(['kesalahan query => ' + pusing]);
+                                                    io.emit('auth_response'+ 'error query => ' + pusing);
+                                                } else {
+                                                    koneksi.query("SELECT * FROM token_penguna WHERE id_penguna = '"+id+"'", function(pusing, hasil_cek) {
+                                                        if (pusing) {
+                                                            io.emit('auth_response'+token,'erorr query => '+ pusing);
+                                                        } else {
+                                                            let json_encode         =   JSON.stringify(hasil_cek);
+                                                            let enkrip_data         =   kode.enkripsi_AES(json_encode);
+                                                            io.emit('auth_response'+token,enkrip_data);                                                                    
+                                                        }
+                                                    });
+                                                }
+                                            });
+                                        }
+                                    }
+                                });
+                                
+                            }
+                        });
+                    }
+                }
+            });
+        }
+    });
+}
+
 let koneksi_io            =           'disconnect';
 function Service() {
     if (status_service == false) {
