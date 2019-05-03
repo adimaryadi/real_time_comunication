@@ -18,6 +18,7 @@ const perintah       =    bacagaris.createInterface({
 
 perintah.prompt();
 
+
 perintah.on('line', (line) => {
     switch (line.trim()) {
         case 'jalankan':
@@ -422,16 +423,69 @@ function ControllerServer(data) {
             case 'drop auth':
                 controller.close();
             return DropAuth();
+            case 'akses file': 
+                controller.close();
+            return Akses_file();
             default:
                 console.log('serve                          Menjalankan Server');
                 console.log('unset port             Menghapus Konfigurasi Port');
                 console.log('serve berhenti                Menghentikan Server');
                 console.log('unset konfig         Menghapus konfigurasi server');
                 console.log('migrasi auth        Generate login singkat di web');
+                console.log('akses file         Menjalankan layanan peyimpanan');
                 controller.prompt();
-                break;
+            break;
         }
     });
+}
+const express         =       require('express');
+const app             =       express();
+let   path_port_file  =       'konfig/file_port';
+function Akses_file() {
+    // app.use('/file',express.static('assets'));
+    // app.listen(port_file, () => console.log('Menjalankan file akses port 467'));
+    if (fs.existsSync(path_port_file+format_save)) {
+        let port_file          =        kode.terjemaah(path_port_file+format_save);
+        app.use('/file',express.static('peyimpanan'));
+        app.get('**', function(req,res) {
+            res.send('File Not Found');
+        });
+        app.listen(port_file,() => {
+            console.log('===============================================');
+            console.log('==== Layanan peyimpanan berjalan akses port '+ port_file);
+            console.log('===============================================');
+            console.log('===============================================');
+        });
+        return ControllerServer(json_file);
+    } else {
+        let buat_port_file     =        bacagaris.createInterface({
+            input:          process.stdin,
+            output:         process.stdout,
+            prompt:         'Isi Port contoh 4390 => '
+        });
+        buat_port_file.prompt();
+
+        buat_port_file.on('line',(line) => {
+            let huruf       =   /^[A-Za-z]+$/;
+            if (line.length <= 1) {
+                console.log('==================================================');
+                console.log('====== Port tidak boleh kosong ===================');
+                console.log('==================================================');
+                buat_port_file.close();
+                return Akses_file();
+            } else if(line.match(huruf)) {
+                console.log('==================================================');
+                console.log('===== Tidak di izinkan menginput huruf ===========');
+                console.log('==================================================');
+                buat_port_file.close();
+                return Akses_file();
+            } else {
+                kode.enkrip(line, path_port_file);
+                buat_port_file.close();
+                return Akses_file();                
+            }
+        });
+    }
 }
 
 function DropAuth() {
@@ -780,18 +834,18 @@ io.on('connection', function(socket) {
         console.log('===============================================');
         console.log('===============================================');
     });
-    socket.on('cek_token', function(token) {
+    socket.on('cek_token_control', function(token) {
         let terjemaah           =        kode.komunikasi(token);
 
         if (fs.existsSync(path_token_save+terjemaah+format_save)) {
             let file_token      =        kode.terjemaah(path_token_save+terjemaah+format_save);
             if (terjemaah == file_token) {
-                io.emit('hasil_cek','betul');
+                io.emit('hasil_cek_control','betul');
             } else {
-                io.emit('hasil_cek','salah');
+                io.emit('hasil_cek_control','salah');
             }
         } else {
-            io.emit('hasil_cek','salah');
+            io.emit('hasil_cek_control','salah');
         }
     });
     socket.on('hapus_token',function(token) {
@@ -907,37 +961,52 @@ io.on('connection', function(socket) {
             let JSON_terjemaah              =       JSON.parse(terjemaah_AES);
             let cek_kridensial              =       JSON_terjemaah.kridensial;
             let kridensial_json             =       JSON.parse(cek_kridensial);
+
             if (kridensial_json.user == json_file.user && kridensial_json.password == json_file.password) {
-                let token       =       JSON_terjemaah.token;
-                // let koneksi     =       mysql_module.createConnection({
-                //     host:           kridensial_json.server,
-                //     user:           kridensial_json.user,
-                //     password:       kridensial_json.password,
-                //     database:       kridensial_json.database
-                // });
-                // koneksi.connect(function(pusing) {
-                //     if (pusing) {
-                //         io.emit('response_'+file_route_json[s].route+token,'Kesalahan kridensial => ' + pusing);
-                //     } else {
-                //         koneksi.query(JSON_terjemaah.query, function(pusing, hasil) {
-                //             if (pusing) {
-                //                 io.emit('response_'+file_route_json[s].route+token,'Kesalahan Query => ' + pusing);
-                //             } else {
-                //                 let status      =   'transaksi_ok';
-                //                 let group       =    {
-                //                     status:     status,
-                //                     hasil:      hasil
-                //                 }
-                //                 let JSON_group          =    JSON.stringify(group);
-                //                 let enkrip_call_back    =    kode.enkripsi_AES(JSON_group);
-                //                 console.log('=============================================');
-                //                 console.log('====== Transaction Data IP '+JSON_terjemaah.ip_addr);
-                //                 console.log('=============================================');
-                //                 io.emit('response_'+file_route_json[s].route+token,enkrip_call_back);
-                //             }
-                //         });
-                //     }
-                // });
+                let token_link       =       JSON_terjemaah.token_links;
+                let token            =       JSON_terjemaah.token;
+                let koneksi     =       mysql_module.createConnection({
+                    host:           kridensial_json.server,
+                    user:           kridensial_json.user,
+                    password:       kridensial_json.password,
+                    database:       kridensial_json.database
+                });
+                koneksi.connect(function(pusing) {
+                    if (pusing) {
+                        io.emit('response_'+file_route_json[s].route+token_link,'Kesalahan kridensial => ' + pusing);
+                    } else {
+                        koneksi.query("SELECT * FROM token_penguna WHERE token = '"+token+"'", function(pusing, results_cek) {
+                            if (pusing) {
+                                io.emit('response_'+file_route_json[s].route+token_link,'Error Bagian query => ' +pusing);
+                            } else {
+                                if (results_cek.length >= 1) {
+                                    koneksi.query(JSON_terjemaah.query, function(pusing, hasil_eksekusi) {
+                                        if (pusing) {
+                                            io.emit('response_'+file_route_json[s].route+token_link,'Kesalahan Query => ' + pusing);
+                                        } else {
+                                            let status      =   'transaksi_ok';
+                                            let group       =    {
+                                                status:     status,
+                                                hasil:      hasil_eksekusi
+                                            }
+                                            let JSON_group          =    JSON.stringify(group);
+                                            let enkrip_call_back    =    kode.enkripsi_AES(JSON_group);
+                                            console.log('=============================================');
+                                            console.log('====== Transaction Data IP '+JSON_terjemaah.ip_addr);
+                                            console.log('=============================================');
+                                            io.emit('response_'+file_route_json[s].route+token_link,enkrip_call_back);
+                                        }
+                                    });                                   
+                                } else {
+                                    let  status             =       'token tidak ada';
+                                    let  json_data          =       JSON.stringify(status);
+                                    let  enkripte           =       kode.enkripsi_AES(json_data);                
+                                    io.emit('hasil_token'+token_link,enkripte);
+                                }
+                            }
+                        });
+                    }
+                });
             } else {
                 let token       =       JSON_terjemaah.token;
                 io.emit('response_'+file_route_json[s].route+token,'mysql akses ditolak');
@@ -967,10 +1036,16 @@ io.on('connection', function(socket) {
         let url_token           =       terjemaah_json.token_link;
         let cek_data            =       "SELECT * FROM token_penguna WHERE token = '"+token_cek+"'";
         database.database(cek_data, function(hasil) {
-            if (hasil >= 1) {
-                console.log('token ada');
+            if (hasil.length >= 1) {
+                let  status             =       'token_ada';
+                let  json_data          =       JSON.stringify(status);
+                let  enkripte           =       kode.enkripsi_AES(json_data);
+                io.emit('hasil_token'+url_token,enkripte);
             } else {
-                console.log('token tidak ada');
+                let  status             =       'token tidak ada';
+                let  json_data          =       JSON.stringify(status);
+                let  enkripte           =       kode.enkripsi_AES(json_data);                
+                io.emit('hasil_token'+url_token,enkripte);
             }
         });
     });

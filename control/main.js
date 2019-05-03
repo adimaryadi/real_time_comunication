@@ -1,9 +1,9 @@
 var socket = io();
 let token     =      localStorage.getItem('token');
 let enkrip    =      btoa(token);
-socket.emit('cek_token', enkrip);
+socket.emit('cek_token_control', enkrip);
 
-socket.on('hasil_cek', function(hasil) {
+socket.on('hasil_cek_control', function(hasil) {
     if (hasil == 'betul') {
         $('.loading').css('display','none');
     } else {
